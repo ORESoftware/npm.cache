@@ -32,6 +32,7 @@ try {
 }
 catch (err) {
   console.error(chalk.magentaBright('Could not read your .docker.r2g/config.js file.'));
+  console.error(err.message);
 }
 
 packages = packages || {};
