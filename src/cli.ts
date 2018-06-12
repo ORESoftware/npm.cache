@@ -6,6 +6,8 @@ import residence = require('residence');
 import * as path from "path";
 import async = require('async');
 import chalk from "chalk";
+import {cacheHas} from "./cache-has";
+import log from './logger';
 
 const root = residence.findProjectRoot(process.cwd());
 
@@ -13,17 +15,16 @@ if (!root) {
   throw 'Could not find project root given cwd => ' + process.cwd();
 }
 
-let pkg: any, packages: {[key:string]: boolean}, docker2gConf: any;
+let pkg: any, packages: { [key: string]: boolean }, docker2gConf: any;
 
-try{
+try {
   pkg = require(path.resolve(root + '/package.json'));
 
 }
-catch(err){
+catch (err) {
   console.error(`could not load package.json file at path ${root}.`);
   throw err.message;
 }
-
 
 try {
   docker2gConf = require(root + '/.docker.r2g/config.js');
@@ -44,32 +45,80 @@ const deps = Object.assign(
   pkg.dependencies || {},
 );
 
-const keys = Object.keys(deps).filter(function(k){
-    return !packages[k];
+const keys = Object.keys(deps).filter(function (k) {
+  return !packages[k];
 });
 
-async.eachLimit(keys, 4, function (k, cb) {
+async.autoInject({
 
-  const version = deps[k];
+    getCacheLocation: function (cb: any) {
 
-  const c = cp.spawn('bash');
+      const k = cp.spawn(`bash`);
 
-  const cmd = `npm cache add "${k}@${version}";`;
-  console.log('running command:', cmd);
-  c.stdin.end(cmd);
-  c.stderr.pipe(process.stderr);
+      k.stdin.end(`npm get cache;`);
 
-  c.once('exit', cb);
+      let stdout = '';
+
+      k.stdout.on('data', function (v) {
+        stdout += String(v);
+      });
+
+      k.once('exit', function (code) {
+        if (code > 0) {
+          cb('Exit code was greater than 0.');
+        }
+        else {
+          cb(null, stdout);
+        }
+      });
+
+    },
+
+    updateCache: function (getCacheLocation: string, cb: any) {
+
+      async.eachLimit(keys, 5, function (k, cb) {
+
+        const version = deps[k];
+
+        cacheHas(getCacheLocation, k, version, function (err: any, has: boolean) {
+
+          if (err) {
+            return cb(err);
+          }
+
+          if (has) {
+            log.info('npm cache already has version:', version);
+            return cb(null);
+          }
+
+          const c = cp.spawn('bash');
+
+          const cmd = `npm cache add "${k}@${version}";`;
+          log.info('running command:', cmd);
+          c.stdin.end(cmd);
+          c.stderr.pipe(process.stderr);
+
+          c.once('exit', cb);
+
+        });
+
+      }, cb);
+
+    }
+
+  },
+
+  function (err: any) {
+
+    if (err) {
+      throw err.message || err;
+    }
+
+    log.info('all done here.');
+    process.exit(0);
+
+  });
 
 
-}, function(err: any){
 
-  if(err){
-    throw err.message || err;
-  }
-
-  console.log('all done here.');
-  process.exit(0);
-
-});
 
