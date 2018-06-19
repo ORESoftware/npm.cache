@@ -27,12 +27,12 @@ catch (err) {
 }
 
 try {
-  docker2gConf = require(root + '/.docker.r2g/config.js');
+  docker2gConf = require(root + '/.r2g/config.js');
   docker2gConf = docker2gConf.default || docker2gConf;
   packages = docker2gConf.packages;
 }
 catch (err) {
-  console.error(chalk.magentaBright('Could not read your .docker.r2g/config.js file.'));
+  console.error(chalk.magentaBright('Could not read your .r2g/config.js file.'));
   console.error(err.message);
 }
 
